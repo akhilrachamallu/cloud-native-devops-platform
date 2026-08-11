@@ -4,12 +4,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-# Upgrade packaging tools and explicitly enforce secure versions
+# Upgrade packaging tools and enforce secure versions
 RUN python -m pip install --no-cache-dir --upgrade \
     "pip>=25.3" \
     "setuptools>=78.1.1" \
     "wheel>=0.46.2" \
-    "msgpack>=1.2.2" \
+    "msgpack>=1.2.1" \
     "jaraco.context>=6.1.0"
 
 # Install application dependencies
