@@ -1,0 +1,72 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+
+    container_name: devops-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: task_platform
+      POSTGRES_USER: devops_user
+      POSTGRES_PASSWORD: devops_password
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U devops_user -d task_platform"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: devops-backend
+
+    restart: unless-stopped
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://devops_user:devops_password@postgres:5432/task_platform
+      JWT_SECRET_KEY: 8f3c1e7a9b2d4f6c8e1a3b5d7f9c2e4a6b8d1f3e5c7a9b2d4f6e8a1c3e5f7b9
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+  frontend:
+    build:
+      context: ./frontend
+
+    container_name: devops-frontend
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:80"
+
+    depends_on:
+      - backend
+
+
+volumes:
+  postgres_data:
+    external: true
+    name: docker_postgres_data
