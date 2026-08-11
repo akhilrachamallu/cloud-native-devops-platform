@@ -1,10 +1,15 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
+# Update Debian security packages
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
-# Upgrade packaging tools and enforce secure versions
+# Upgrade Python packaging tools and enforce secure versions
 RUN python -m pip install --no-cache-dir --upgrade \
     "pip>=25.3" \
     "setuptools>=78.1.1" \

@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
+
 from pwdlib import PasswordHash
 
 from app.core.config import settings
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 
 password_hash = PasswordHash.recommended()
 
@@ -50,8 +53,9 @@ def decode_access_token(token: str) -> int:
 
         return int(user_id)
 
-    except (JWTError, ValueError) as exc:
+    except (InvalidTokenError, ValueError) as exc:
         raise ValueError("Invalid or expired token") from exc
+
 
 bearer_scheme = HTTPBearer()
 
