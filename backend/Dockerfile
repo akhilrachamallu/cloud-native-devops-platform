@@ -7,8 +7,14 @@ ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade \
+    pip \
+    setuptools \
+    wheel \
+    "jaraco.context>=6.1.0" \
+    "msgpack>=1.2.1"
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
