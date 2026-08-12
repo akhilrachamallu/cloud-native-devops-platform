@@ -10,7 +10,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 # ---------------------------------------------------------
 # CORS Configuration
 # ---------------------------------------------------------
@@ -52,12 +54,6 @@ def root():
     }
 
 
-# ---------------------------------------------------------
-# Health Endpoint
-# ---------------------------------------------------------
-
 @app.get("/api/health")
 def health_check():
-    return {
-        "status": "healthy",
-    }
+    return {"status": "healthy"}
