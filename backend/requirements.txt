@@ -33,6 +33,7 @@ pydantic_core==2.46.4
 Pygments==2.20.0
 pytest==9.1.1
 python-dotenv==1.2.2
+PyJWT==2.13.0
 PyYAML==6.0.3
 rsa==4.9.1
 six==1.17.0
@@ -48,4 +49,3 @@ jaraco.context>=6.1.0
 msgpack>=1.2.1
 wheel>=0.46.2
 setuptools>=78.1.1
-PyJWT==2.13.0
