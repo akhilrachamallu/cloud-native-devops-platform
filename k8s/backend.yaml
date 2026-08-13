@@ -27,8 +27,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: cloud-native-devops-platform-backend:latest
-          imagePullPolicy: Never
+          image: akhilrachamallu/cloud-native-devops-platform-backend:latest
+          imagePullPolicy: Always
 
           ports:
             - containerPort: 8000
@@ -57,20 +57,20 @@ spec:
 
           readinessProbe:
             httpGet:
-              path: /health
+              path: /api/health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-            timeoutSeconds: 2
+            timeoutSeconds: 5
             failureThreshold: 3
 
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/health
               port: 8000
             initialDelaySeconds: 20
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 5
             failureThreshold: 3
 
 ---

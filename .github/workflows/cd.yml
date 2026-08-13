@@ -1,4 +1,4 @@
-name: CD - Docker Hub
+name: CD - Docker Hub + Kubernetes
 
 on:
   push:
@@ -9,11 +9,16 @@ permissions:
   contents: read
 
 jobs:
+
+  # ==========================================
+  # CI/CD Job 1: Build and Push Docker Images
+  # ==========================================
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -46,3 +51,78 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:latest
+
+
+  # ==========================================
+  # CD Job 2: Deploy to Local Minikube
+  # ==========================================
+  deploy:
+    name: Deploy to Minikube
+    needs: build-and-push
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Docker
+        shell: powershell
+        run: |
+          docker version
+
+      - name: Verify Kubernetes
+        shell: powershell
+        run: |
+          kubectl version --client
+          kubectl get nodes
+
+      - name: Verify Minikube
+        shell: powershell
+        run: |
+          minikube status
+
+      - name: Apply PostgreSQL
+        shell: powershell
+        run: |
+          kubectl apply -f k8s/postgres.yaml
+
+      - name: Apply Backend
+        shell: powershell
+        run: |
+          kubectl apply -f k8s/backend.yaml
+
+      - name: Apply Frontend
+        shell: powershell
+        run: |
+          kubectl apply -f k8s/frontend.yaml
+
+      - name: Restart Backend
+        shell: powershell
+        run: |
+          kubectl rollout restart deployment/backend
+
+      - name: Restart Frontend
+        shell: powershell
+        run: |
+          kubectl rollout restart deployment/frontend
+
+      - name: Wait for Backend
+        shell: powershell
+        run: |
+          kubectl rollout status deployment/backend --timeout=180s
+
+      - name: Wait for Frontend
+        shell: powershell
+        run: |
+          kubectl rollout status deployment/frontend --timeout=180s
+
+      - name: Verify Pods
+        shell: powershell
+        run: |
+          kubectl get pods
+
+      - name: Verify Services
+        shell: powershell
+        run: |
+          kubectl get services
