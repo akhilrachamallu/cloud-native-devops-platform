@@ -10,13 +10,16 @@ permissions:
 
 jobs:
 
-  # ==========================================
-  # Job 1: Build and Push Docker Images
-  # ==========================================
+  # ==========================================================
+  # JOB 1: BUILD, SCAN AND PUSH DOCKER IMAGES
+  # ==========================================================
 
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ github.sha }}
 
     steps:
 
@@ -29,9 +32,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ------------------------------------------
-      # Build Backend
-      # ------------------------------------------
+      # ------------------------------------------------------
+      # Backend
+      # ------------------------------------------------------
 
       - name: Build backend image
         run: |
@@ -40,9 +43,9 @@ jobs:
             -t ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:latest \
             ./backend
 
-      # ------------------------------------------
-      # Build Frontend
-      # ------------------------------------------
+      # ------------------------------------------------------
+      # Frontend
+      # ------------------------------------------------------
 
       - name: Build frontend image
         run: |
@@ -51,28 +54,52 @@ jobs:
             -t ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:latest \
             ./frontend
 
-      # ------------------------------------------
-      # Push Backend
-      # ------------------------------------------
+      # ------------------------------------------------------
+      # Security scan
+      # ------------------------------------------------------
+
+      - name: Scan backend image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:${{ github.sha }}
+          format: table
+          exit-code: 0
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      - name: Scan frontend image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}
+          format: table
+          exit-code: 0
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      # ------------------------------------------------------
+      # Push images
+      # ------------------------------------------------------
 
       - name: Push backend image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:latest
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:${{ github.sha }}
 
-      # ------------------------------------------
-      # Push Frontend
-      # ------------------------------------------
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:latest
 
       - name: Push frontend image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:latest
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}
+
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:latest
 
 
-  # ==========================================
-  # Job 2: Deploy to Local Minikube
-  # ==========================================
+  # ==========================================================
+  # JOB 2: DEPLOY TO MINIKUBE
+  # ==========================================================
 
   deploy:
     name: Deploy to Minikube
@@ -81,25 +108,17 @@ jobs:
 
     steps:
 
-      # ------------------------------------------
-      # Checkout Repository
-      # ------------------------------------------
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------
-      # Verify Docker
-      # ------------------------------------------
+      # ------------------------------------------------------
+      # Verify environment
+      # ------------------------------------------------------
 
       - name: Verify Docker
         shell: powershell
         run: |
           docker version
-
-      # ------------------------------------------
-      # Verify Kubernetes
-      # ------------------------------------------
 
       - name: Verify Kubernetes
         shell: powershell
@@ -107,150 +126,243 @@ jobs:
           kubectl version --client
           kubectl get nodes
 
-      # ------------------------------------------
-      # Verify Minikube
-      # ------------------------------------------
-
       - name: Verify Minikube
         shell: powershell
         run: |
           minikube status
 
-      # ------------------------------------------
-      # Apply PostgreSQL
-      # ------------------------------------------
+      # ------------------------------------------------------
+      # Verify Docker Hub images exist
+      # ------------------------------------------------------
+
+      - name: Verify backend image
+        shell: powershell
+        run: |
+          docker pull "${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:${{ github.sha }}"
+
+      - name: Verify frontend image
+        shell: powershell
+        run: |
+          docker pull "${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}"
+
+      # ------------------------------------------------------
+      # Save current deployment state
+      # ------------------------------------------------------
+
+      - name: Save current backend image
+        shell: powershell
+        run: |
+          $image = kubectl get deployment backend `
+            -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+          echo "Current backend image: $image"
+
+          "BACKEND_OLD_IMAGE=$image" >> $env:GITHUB_ENV
+
+      - name: Save current frontend image
+        shell: powershell
+        run: |
+          $image = kubectl get deployment frontend `
+            -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+          echo "Current frontend image: $image"
+
+          "FRONTEND_OLD_IMAGE=$image" >> $env:GITHUB_ENV
+
+      # ------------------------------------------------------
+      # Apply infrastructure
+      # ------------------------------------------------------
 
       - name: Apply PostgreSQL
         shell: powershell
         run: |
           kubectl apply -f k8s/postgres.yaml
 
-      # ------------------------------------------
-      # Apply Backend
-      # ------------------------------------------
-
       - name: Apply Backend
         shell: powershell
         run: |
           kubectl apply -f k8s/backend.yaml
-
-      # ------------------------------------------
-      # Apply Frontend
-      # ------------------------------------------
 
       - name: Apply Frontend
         shell: powershell
         run: |
           kubectl apply -f k8s/frontend.yaml
 
-      # ==========================================
-      # Deploy Exact Git SHA Images
-      # ==========================================
+      # ------------------------------------------------------
+      # Deploy immutable backend image
+      # ------------------------------------------------------
 
-      - name: Deploy Backend SHA image
+      - name: Deploy backend immutable image
         shell: powershell
         run: |
           kubectl set image deployment/backend `
             backend=${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-backend:${{ github.sha }}
 
-      - name: Deploy Frontend SHA image
+      # ------------------------------------------------------
+      # Deploy immutable frontend image
+      # ------------------------------------------------------
+
+      - name: Deploy frontend immutable image
         shell: powershell
         run: |
           kubectl set image deployment/frontend `
             frontend=${{ secrets.DOCKERHUB_USERNAME }}/cloud-native-devops-platform-frontend:${{ github.sha }}
 
-      # ==========================================
-      # Rolling Deployment Verification
-      # ==========================================
+      # ------------------------------------------------------
+      # Wait for rollout
+      # ------------------------------------------------------
 
-      - name: Wait for Backend Rollout
+      - name: Wait for backend rollout
         shell: powershell
         run: |
           kubectl rollout status deployment/backend --timeout=180s
 
-      - name: Wait for Frontend Rollout
+      - name: Wait for frontend rollout
         shell: powershell
         run: |
           kubectl rollout status deployment/frontend --timeout=180s
 
-      # ==========================================
-      # Verify Exact Images
-      # ==========================================
+      # ------------------------------------------------------
+      # Verify pods
+      # ------------------------------------------------------
 
-      - name: Verify Backend Image
-        shell: powershell
-        run: |
-          Write-Host "Backend deployed image:"
-          kubectl get deployment backend `
-            -o jsonpath="{.spec.template.spec.containers[0].image}"
-          Write-Host ""
-
-      - name: Verify Frontend Image
-        shell: powershell
-        run: |
-          Write-Host "Frontend deployed image:"
-          kubectl get deployment frontend `
-            -o jsonpath="{.spec.template.spec.containers[0].image}"
-          Write-Host ""
-
-      # ==========================================
-      # Verify Kubernetes Resources
-      # ==========================================
-
-      - name: Verify Pods
+      - name: Verify pods
         shell: powershell
         run: |
           kubectl get pods -o wide
 
-      - name: Verify Deployments
-        shell: powershell
-        run: |
-          kubectl get deployments
+      # ------------------------------------------------------
+      # Verify services
+      # ------------------------------------------------------
 
-      - name: Verify Services
+      - name: Verify services
         shell: powershell
         run: |
           kubectl get services
 
-      # ==========================================
-      # Backend Health Check
-      # ==========================================
+      # ------------------------------------------------------
+      # Backend health check
+      # ------------------------------------------------------
 
-      - name: Backend Health Check
+      - name: Backend health check
+        id: health_check
         shell: powershell
         run: |
 
-          $portForward = Start-Job {
-            kubectl port-forward svc/backend 8001:8000
-          }
+          Write-Host "Starting backend port-forward..."
 
-          Start-Sleep -Seconds 5
+          $process = Start-Process `
+            -FilePath "kubectl" `
+            -ArgumentList "port-forward svc/backend 8001:8000" `
+            -PassThru `
+            -WindowStyle Hidden
 
           try {
 
-            $response = Invoke-WebRequest `
-              -Uri "http://127.0.0.1:8001/api/health" `
-              -UseBasicParsing `
-              -TimeoutSec 10
+            Start-Sleep -Seconds 5
 
-            Write-Host "Backend response:"
-            Write-Host $response.Content
+            $healthy = $false
 
-            if ($response.StatusCode -ne 200) {
-              throw "Backend health check failed with HTTP status $($response.StatusCode)"
+            for ($i = 1; $i -le 12; $i++) {
+
+              try {
+
+                $response = Invoke-WebRequest `
+                  -Uri "http://127.0.0.1:8001/api/health" `
+                  -UseBasicParsing `
+                  -TimeoutSec 5
+
+                Write-Host "Health check response:"
+                Write-Host $response.Content
+
+                if ($response.StatusCode -eq 200) {
+                  $healthy = $true
+                  break
+                }
+
+              }
+              catch {
+
+                Write-Host "Health check attempt $i failed."
+
+              }
+
+              Start-Sleep -Seconds 5
             }
 
-            if ($response.Content -notmatch "healthy") {
-              throw "Backend did not return healthy status"
+            if (-not $healthy) {
+              throw "Backend health check failed."
             }
 
-            Write-Host "Backend health check passed."
+            Write-Host "Backend health check PASSED."
 
           }
           finally {
 
-            Stop-Job $portForward -ErrorAction SilentlyContinue
-
-            Remove-Job $portForward -Force -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
 
           }
+
+      # ------------------------------------------------------
+      # Verify final images
+      # ------------------------------------------------------
+
+      - name: Verify deployed images
+        shell: powershell
+        run: |
+
+          Write-Host "Backend image:"
+          kubectl get deployment backend `
+            -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+          Write-Host ""
+
+          Write-Host "Frontend image:"
+          kubectl get deployment frontend `
+            -o jsonpath="{.spec.template.spec.containers[0].image}"
+
+          Write-Host ""
+
+      # ------------------------------------------------------
+      # Final verification
+      # ------------------------------------------------------
+
+      - name: Final deployment verification
+        shell: powershell
+        run: |
+
+          kubectl get deployments
+          kubectl get pods
+          kubectl get services
+
+          Write-Host "Deployment completed successfully."
+
+
+      # ======================================================
+      # AUTOMATIC ROLLBACK
+      # ======================================================
+
+      - name: Rollback deployment
+        if: failure()
+        shell: powershell
+        run: |
+
+          Write-Host "======================================"
+          Write-Host "DEPLOYMENT FAILED"
+          Write-Host "Starting automatic rollback..."
+          Write-Host "======================================"
+
+          kubectl rollout undo deployment/backend
+          kubectl rollout undo deployment/frontend
+
+          kubectl rollout status deployment/backend --timeout=180s
+          kubectl rollout status deployment/frontend --timeout=180s
+
+          Write-Host "======================================"
+          Write-Host "ROLLBACK COMPLETED"
+          Write-Host "======================================"
+
+          kubectl get deployments
+          kubectl get pods
