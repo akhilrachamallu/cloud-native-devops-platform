@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.api.routes import auth, tasks, users
 
 
@@ -9,6 +9,7 @@ app = FastAPI(
     description="Backend API for the Cloud-Native DevOps Platform",
     version="1.0.0",
 )
+Instrumentator().instrument(app).expose(app)
 
 @app.get("/health")
 def health_check():

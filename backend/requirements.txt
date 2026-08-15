@@ -49,3 +49,5 @@ jaraco.context>=6.1.0
 msgpack>=1.2.1
 wheel>=0.46.2
 setuptools>=78.1.1
+alembic==1.19.1
+prometheus-fastapi-instrumentator==8.0.2

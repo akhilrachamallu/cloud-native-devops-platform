@@ -104,3 +104,30 @@ logs/
 
 *.tmp
 *.temp
+# Local GitHub Actions self-hosted runner
+actions-runner/
+
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# GitHub Actions self-hosted runner
+actions-runner/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment files
+.env
+.env.*
+
+# Alembic generated cache
+backend/alembic/__pycache__/
+backend/alembic/versions/__pycache__/
+
